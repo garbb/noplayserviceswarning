@@ -18,7 +18,7 @@
         <!-- Introduction to the module (shown in the framework) -->
         <meta-data
             android:name="xposeddescription"
-            android:value="Disable &quot;This App won't run unless you Enable/Update Google Play Services&quot; popups_" />
+            android:value="Disable &quot;This App won't run unless you Enable/Update Google Play Services&quot; popups" />
         <!-- The minimum supported Api version of the module is usually 54. -->
         <meta-data
             android:name="xposedminversion"
