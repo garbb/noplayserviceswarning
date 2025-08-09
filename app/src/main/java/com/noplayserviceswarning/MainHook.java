@@ -28,7 +28,7 @@ public class MainHook implements IXposedHookLoadPackage {
             field.setAccessible(true);
             field.set(targetObject, value);
         } catch (Throwable ignored) {
-            // Fail silently
+            // Field might not exist, fail silently
         }
 
     }
