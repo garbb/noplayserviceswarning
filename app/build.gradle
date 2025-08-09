@@ -9,7 +9,7 @@ android {
     defaultConfig {
         applicationId "com.noplayserviceswarning"
         minSdk 28
-        targetSdk 28
+        targetSdk 33
         versionCode 1
         versionName "1.0"
 
@@ -20,6 +20,7 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.debug
         }
     }
     compileOptions {
