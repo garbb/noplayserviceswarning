@@ -27,6 +27,17 @@ android {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
+
+    applicationVariants.configureEach { variant ->
+        if (variant.buildType.name == "release") {
+            variant.outputs.configureEach { output ->
+                def versionName = variant.versionName
+                def versionCode = variant.versionCode
+                def newName = "${applicationId}-v${versionName}-(${versionCode}).apk"
+                outputFileName = newName
+            }
+        }
+    }
 }
 
 dependencies {

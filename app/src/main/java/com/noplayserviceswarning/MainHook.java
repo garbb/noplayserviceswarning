@@ -14,10 +14,23 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage;
 
 public class MainHook implements IXposedHookLoadPackage {
 
-    private void setField(Object Obj, String fieldName, Object value) throws NoSuchFieldException, IllegalAccessException {
-        Field field = Obj.getClass().getField(fieldName); // Only finds public fields
-        field.setAccessible(true); // Allow access if it's not public
-        field.set(Obj, value);
+    private void setField(Object targetObject, String fieldName, Object value) throws NoSuchFieldException, IllegalAccessException {
+        if (targetObject == null) {
+            return;
+        }
+        try {
+            Field field;
+            try {
+                field = targetObject.getClass().getField(fieldName); // Try public field first
+            } catch (NoSuchFieldException e) {
+                field = targetObject.getClass().getDeclaredField(fieldName); // Then private/protected
+            }
+            field.setAccessible(true);
+            field.set(targetObject, value);
+        } catch (Throwable ignored) {
+            // Fail silently
+        }
+
     }
 
     @Override
@@ -40,10 +53,6 @@ public class MainHook implements IXposedHookLoadPackage {
                                 XposedBridge.log("Spoofing getPackageInfo() for: " + packageName);
                                 PackageInfo fakeInfo = (PackageInfo) param.getResult();
 
-                                // empty ApplicationInfo makes app skip google play services check for some reason...
-                                // also causes some apps to not even create google play services availability notification channel...
-                                //fakeInfo.applicationInfo = new ApplicationInfo();
-
                                 int fakeVersionCode = Integer.MAX_VALUE; // 2147483647
 //                                int fakeVersionCode = 252863013;
 //                                int fakeVersionCode = 12862063L;
@@ -56,7 +65,8 @@ public class MainHook implements IXposedHookLoadPackage {
                                 setField(appInfo, "longVersionCode", fakeVersionCode);
                                 setField(appInfo, "versionCode", fakeVersionCode);
 
-                                PackageInfoLogger.logPackageInfo(fakeInfo);
+                                // for debugging...
+                                //PackageInfoLogger.logPackageInfo(fakeInfo);
 
                                 param.setResult(fakeInfo);
                             }
