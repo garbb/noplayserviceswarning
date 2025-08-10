@@ -8,6 +8,7 @@ import java.lang.reflect.Field;
 
 import de.robv.android.xposed.IXposedHookLoadPackage;
 import de.robv.android.xposed.XC_MethodHook;
+import de.robv.android.xposed.XC_MethodReplacement;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
@@ -58,7 +59,7 @@ public class MainHook implements IXposedHookLoadPackage {
 //                                int fakeVersionCode = 12862063L;
 
                                 fakeInfo.setLongVersionCode(fakeVersionCode);
-
+//
                                 ApplicationInfo appInfo = fakeInfo.applicationInfo;
                                 appInfo.enabled = true;
                                 setField(appInfo, "enabledSetting", PackageManager.COMPONENT_ENABLED_STATE_ENABLED);
@@ -68,14 +69,12 @@ public class MainHook implements IXposedHookLoadPackage {
                                 // for debugging...
                                 //PackageInfoLogger.logPackageInfo(fakeInfo);
 
-                                param.setResult(fakeInfo);
+                                //param.setResult(fakeInfo);
                             }
                         }
                     }
                 }
         );
-
-
 
 
     }
