@@ -4,20 +4,42 @@ import android.app.Application;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.content.Context;
-import android.content.pm.ApplicationInfo;
-import android.content.pm.PackageInfo;
-import android.content.pm.PackageManager;
-
-import java.lang.reflect.Field;
 
 import de.robv.android.xposed.IXposedHookLoadPackage;
 import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XC_MethodReplacement;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
 
 public class MainHook implements IXposedHookLoadPackage {
+
+    private void hookAllClassMethods(String className, ClassLoader classloader, String methodName, de.robv.android.xposed.XC_MethodHook callback){
+        try {
+            Class<?> dialogFragmentClass = XposedHelpers.findClass(className, classloader);
+            XposedBridge.hookAllMethods(dialogFragmentClass, methodName, callback);
+        } catch (Throwable t) {
+            XposedBridge.log("Failed to hook " + className + " -> " + methodName + ": "+ t);
+        }
+    }
+
+    private void hideGooglePlayAlertDialog(Object alertDialog) {
+        if (alertDialog instanceof android.app.AlertDialog) {
+            Object alertController = XposedHelpers.getObjectField(alertDialog, "mAlert");
+
+            // title text is in mTitle (CharSequence)
+            CharSequence t = (CharSequence) XposedHelpers.getObjectField(alertController, "mTitle");
+            if (t != null) {
+                XposedBridge.log("android.app.DialogFragment AlertDialog title: " + t);
+                if (t.equals("Update Google Play services") || t.equals("Enable Google Play services")) {
+
+                    // setting these two fields causes android.app.Dialog -> show() for this dialog to do nothing
+                    XposedHelpers.setObjectField(alertDialog, "mShowing", true);
+                    XposedHelpers.setObjectField(alertDialog, "mDecor", null);
+                }
+            }
+
+        }
+    }
 
     @Override
     public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) {
@@ -28,6 +50,8 @@ public class MainHook implements IXposedHookLoadPackage {
 
         XposedBridge.log("\nnoplayserviceswarning loaded into: " + lpparam.packageName);
 
+
+/*
         String targetClass = "com.google.android.gms.common.GoogleApiAvailabilityLight";
 //        String targetClass = "com.google.android.gms.common.GoogleApiAvailability";
 //        String targetClass = "com.google.android.gms.common.GooglePlayServicesUtilLight";
@@ -57,7 +81,35 @@ public class MainHook implements IXposedHookLoadPackage {
             }
 
         }
+*/
 
+        // TODO
+        // for newer apps, uses
+        // com.google.android.gms.common.ConnectionResult
+        // status code .c ??
+        // ...
+
+
+        hookAllClassMethods("android.app.AlertDialog$Builder", lpparam.classLoader,
+                "create",
+                new XC_MethodHook() {
+                    @Override
+                    protected void afterHookedMethod(MethodHookParam param) {
+                        Object alertDialog = param.getResult();
+                        hideGooglePlayAlertDialog(alertDialog);
+                    }
+                });
+
+        hookAllClassMethods("android.app.DialogFragment", lpparam.classLoader,
+                "onStart",
+                new XC_MethodHook() {
+                    @Override
+                    protected void beforeHookedMethod(MethodHookParam param) {
+                        Object thisObj = param.thisObject;
+                        android.app.Dialog dialog = (android.app.Dialog) XposedHelpers.callMethod(thisObj, "getDialog");
+                        hideGooglePlayAlertDialog(dialog);
+                    }
+                });
 
         // when notification channel is created, set importance to NONE
         // this happens upon first launch after data clear
