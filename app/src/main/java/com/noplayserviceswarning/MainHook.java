@@ -1,5 +1,9 @@
 package com.noplayserviceswarning;
 
+import android.app.Application;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.content.Context;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
@@ -8,73 +12,87 @@ import java.lang.reflect.Field;
 
 import de.robv.android.xposed.IXposedHookLoadPackage;
 import de.robv.android.xposed.XC_MethodHook;
+import de.robv.android.xposed.XC_MethodReplacement;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
 
 public class MainHook implements IXposedHookLoadPackage {
 
-    private void setField(Object targetObject, String fieldName, Object value) {
-        if (targetObject == null) {
-            return;
-        }
-        try {
-            Field field;
-            try {
-                field = targetObject.getClass().getField(fieldName); // Try public field first
-            } catch (NoSuchFieldException e) {
-                field = targetObject.getClass().getDeclaredField(fieldName); // Then private/protected
-            }
-            field.setAccessible(true);
-            field.set(targetObject, value);
-        } catch (Throwable ignored) {
-            // Field might not exist, fail silently
-        }
-
-    }
-
     @Override
     public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) {
+        final String GMS_PACKAGE_NAME = "com.google.android.gms";
+
+        // don't hook gms app itself b/c it breaks live transcribe (and maybe other stuff)...
+        if (lpparam.packageName.equals(GMS_PACKAGE_NAME)) return;
+
         XposedBridge.log("\nnoplayserviceswarning loaded into: " + lpparam.packageName);
 
-        XposedBridge.hookAllMethods(
-                XposedHelpers.findClass("android.app.ApplicationPackageManager", lpparam.classLoader),
-                "getPackageInfo",
+        String targetClass = "com.google.android.gms.common.GoogleApiAvailabilityLight";
+//        String targetClass = "com.google.android.gms.common.GoogleApiAvailability";
+//        String targetClass = "com.google.android.gms.common.GooglePlayServicesUtilLight";
+        Class<?> classexists = XposedHelpers.findClassIfExists(targetClass, lpparam.classLoader);
+        if (classexists != null) {
+            try {
+                XposedBridge.hookAllMethods(
+                        classexists, // className
+                        "isGooglePlayServicesAvailable", // the method to hook
+                        new XC_MethodReplacement() {
+                            @Override
+                            protected Object replaceHookedMethod(XC_MethodHook.MethodHookParam param) {
+                                XposedBridge.log("making isGooglePlayServicesAvailable return 0 for " + lpparam.packageName);
+                                // isGooglePlayServicesAvailable returns 0 if there are no errors
+                                // This way the method it's not executed and 0 is always returned
+                                return 0;
+                            }
+                        }
+                );
+                XposedBridge.log("hooked isGooglePlayServicesAvailable for : " + lpparam.packageName);
+            }
+            catch (NoSuchMethodError e) {
+                XposedBridge.log("Error: \"" + lpparam.appInfo.name + "\" does not contain the target method..\n");
+            }
+            catch (Exception e) {
+                XposedBridge.log("Unexpected error :\n" + e.getMessage());
+            }
+
+        }
+
+
+        // when notification channel is created, set importance to NONE
+        // this happens upon first launch after data clear
+        XposedHelpers.findAndHookMethod(NotificationManager.class, "createNotificationChannel",
+                NotificationChannel.class,
+                new XC_MethodHook() {
+                    @Override
+                    protected void beforeHookedMethod(MethodHookParam param) {
+                        NotificationChannel channel = (NotificationChannel) param.args[0];
+                        if (channel.getId().equals("com.google.android.gms.availability")) {
+                            XposedBridge.log("hooked createNotificationChannel for " + channel.getId());
+                            channel.setImportance(NotificationManager.IMPORTANCE_NONE);
+                        }
+                    }
+                });
+
+        // if channel already exists then change importance to NONE
+        XposedHelpers.findAndHookMethod(Application.class, "attach",
+                Context.class,
                 new XC_MethodHook() {
                     @Override
                     protected void afterHookedMethod(MethodHookParam param) {
-                        if (param.args.length >= 1 && param.args[0] instanceof String) {
+                        Context context = (Context) param.args[0];
 
-                            final String GMS_PACKAGE_NAME = "com.google.android.gms";
+                        NotificationManager nm = context.getSystemService(NotificationManager.class);
+                        NotificationChannel channel = nm.getNotificationChannel("com.google.android.gms.availability");
 
-                            String packageName = (String) param.args[0];
-
-                            if (GMS_PACKAGE_NAME.equals(packageName)) {
-                                XposedBridge.log("Spoofing getPackageInfo() for: " + packageName);
-                                PackageInfo packageInfo = (PackageInfo) param.getResult();
-
-                                int fakeVersionCode = Integer.MAX_VALUE; // 2147483647
-//                                int fakeVersionCode = 252863013;
-//                                int fakeVersionCode = 12862063L;
-
-                                packageInfo.setLongVersionCode(fakeVersionCode);
-
-                                ApplicationInfo appInfo = packageInfo.applicationInfo;
-                                appInfo.enabled = true;
-                                setField(appInfo, "enabledSetting", PackageManager.COMPONENT_ENABLED_STATE_ENABLED);
-                                setField(appInfo, "longVersionCode", fakeVersionCode);
-                                setField(appInfo, "versionCode", fakeVersionCode);
-
-                                // for debugging...
-                                //PackageInfoLogger.logPackageInfo(packageInfo);
-
-                                //param.setResult(packageInfo);
-                            }
+                        if (channel != null) {
+                            XposedBridge.log("setting importance for " + channel.getId() + " to IMPORTANCE_NONE");
+                            channel.setImportance(NotificationManager.IMPORTANCE_NONE);
+                            nm.createNotificationChannel(channel);
                         }
-                    }
-                }
-        );
 
+                    }
+                });
 
     }
 

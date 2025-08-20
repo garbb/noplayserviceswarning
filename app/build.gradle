@@ -10,8 +10,8 @@ android {
         applicationId "com.noplayserviceswarning"
         minSdk 28
         targetSdk 33
-        versionCode 1
-        versionName "1.0"
+        versionCode 11
+        versionName "1.1"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -33,7 +33,7 @@ android {
             variant.outputs.configureEach { output ->
                 def versionName = variant.versionName
                 def versionCode = variant.versionCode
-                def newName = "${applicationId}-v${versionName}-(${versionCode}).apk"
+                def newName = "${applicationId}-v${versionName}.apk"
                 outputFileName = newName
             }
         }
